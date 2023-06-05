@@ -23,10 +23,11 @@ void render(double);
 
 GLuint shader_program = 0; // shader program to set render pipeline
 GLuint vao = 0;            // Vertext Array Object to set input data
-// GLint model_location, view_location, proj_location; // Uniforms for transformation matrices
-GLint mv_location, proj_location; // Uniforms for transformation matrices
+
+GLint view_location, projection_location, model_location, normal_matrix_location;
 GLint lightPositionLocation, lightAmbientLocation, lightDiffuseLocation, lightSpecularLocation;
 GLint materialAmbientLocation, materialDiffuseLocation, materialSpecularLocation, materialShininessLocation;
+GLint viewPosLocation;
 
 // Shader names
 const char *vertexFileName = "spinningcube_withlight_vs.glsl";
@@ -251,11 +252,13 @@ int main()
 
   // Uniforms
   // - Model matrix
+  model_location = glGetUniformLocation(shader_program, "model");
   // - View matrix
-  mv_location = glGetUniformLocation(shader_program, "mv_matrix");
+  view_location = glGetUniformLocation(shader_program, "view");
   // - Projection matrix
-  proj_location = glGetUniformLocation(shader_program, "proj_matrix");
+  projection_location = glGetUniformLocation(shader_program, "projection");
   // - Normal matrix: normal vectors from local to world coordinates
+  normal_matrix_location = glGetUniformLocation(shader_program, "normal_matrix");
   // - Camera position
   // - Light data
   lightPositionLocation = glGetUniformLocation(shader_program, "light.position");
@@ -268,6 +271,7 @@ int main()
   materialSpecularLocation = glGetUniformLocation(shader_program, "material.specular");
   materialShininessLocation = glGetUniformLocation(shader_program, "material.shininess");
   // [...]
+  viewPosLocation = glGetUniformLocation(shader_program, "view_pos");
 
   // Render loop
   while (!glfwWindowShouldClose(window))
@@ -289,7 +293,6 @@ int main()
 
 void render(double currentTime)
 {
-  float f = (float)currentTime * 0.3f;
 
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -298,28 +301,39 @@ void render(double currentTime)
   glUseProgram(shader_program);
   glBindVertexArray(vao);
 
-  glm::mat4 mv_matrix, proj_matrix, view_matrix;
+  glm::mat4 model_matrix, normal_matrix, projection_matrix, view_matrix;
 
-  view_matrix = glm::lookAt(camera_pos,                   // pos
-                            glm::vec3(0.0f, 0.0f, 0.0f),  // target
-                            glm::vec3(0.0f, 1.0f, 0.0f)); // up
+  // view_matrix = glm::lookAt(camera_pos,                   // pos
+  //                           glm::vec3(0.0f, 0.0f, 0.0f),  // target
+  //                           glm::vec3(0.0f, 1.0f, 0.0f)); // up
+  // glUniformMatrix4fv(view_location, 1, GL_FALSE, glm::value_ptr(view_matrix));
 
   // Moving cube
-  mv_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.0f, 0.0f, -2.0f));
-  mv_matrix = glm::rotate(mv_matrix,
-                          glm::radians(45.0f),
-                          glm::vec3(0.0f, 1.0f, 0.0f));
-  mv_matrix = glm::rotate(mv_matrix,
-                          glm::radians(45.0f),
-                          glm::vec3(1.0f, 0.0f, 0.0f));
+  view_matrix = glm::mat4(1.0f);
+  view_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.0f, 0.0f, -2.0f));
+  view_matrix = glm::rotate(view_matrix,
+                            glm::radians(45.0f),
+                            glm::vec3(0.0f, 1.0f, 0.0f));
+  view_matrix = glm::rotate(view_matrix,
+                            glm::radians(45.0f),
+                            glm::vec3(1.0f, 0.0f, 0.0f));
 
-  glUniformMatrix4fv(mv_location, 1, GL_FALSE, glm::value_ptr(mv_matrix));
+  glUniformMatrix4fv(view_location, 1, GL_FALSE, glm::value_ptr(view_matrix));
   //
   // Projection
-  proj_matrix = glm::perspective(glm::radians(50.0f), (float)gl_width / (float)gl_height, 0.1f, 1000.0f);
-  glUniformMatrix4fv(proj_location, 1, GL_FALSE, glm::value_ptr(proj_matrix));
+  projection_matrix = glm::perspective(glm::radians(50.0f), (float)gl_width / (float)gl_height, 0.1f, 1000.0f);
+  glUniformMatrix4fv(projection_location, 1, GL_FALSE, glm::value_ptr(projection_matrix));
 
-  // Obtener las ubicaciones de las variables uniformes light y material en el programa de sombreado
+  // Normal
+  model_matrix = glm::mat4(1.0f);
+  glUniformMatrix4fv(model_location, 1, GL_FALSE, glm::value_ptr(model_matrix));
+
+  normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
+  glUniformMatrix4fv(normal_matrix_location, 1, GL_FALSE, glm::value_ptr(normal_matrix));
+
+  // view pos
+  glm::vec3 viewPosValue(0, 0, 0);
+  glUniform3fv(viewPosLocation, 1, glm::value_ptr(viewPosValue));
 
   // Enviar los valores de light y material al programa de sombreado
   glUniform3fv(lightPositionLocation, 1, glm::value_ptr(light.position));
