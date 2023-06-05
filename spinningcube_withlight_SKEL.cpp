@@ -25,10 +25,8 @@ GLuint shader_program = 0; // shader program to set render pipeline
 GLuint vao = 0;            // Vertext Array Object to set input data
 // GLint model_location, view_location, proj_location; // Uniforms for transformation matrices
 GLint mv_location, proj_location; // Uniforms for transformation matrices
-
-// Ubicaciones de las variables uniformes para la iluminación
-GLint light_pos_location, light_ambient_location, light_diffuse_location, light_specular_location;
-GLint material_ambient_location, material_diffuse_location, material_specular_location, material_shininess_location;
+GLint lightPositionLocation, lightAmbientLocation, lightDiffuseLocation, lightSpecularLocation;
+GLint materialAmbientLocation, materialDiffuseLocation, materialSpecularLocation, materialShininessLocation;
 
 // Shader names
 const char *vertexFileName = "spinningcube_withlight_vs.glsl";
@@ -38,16 +36,36 @@ const char *fragmentFileName = "spinningcube_withlight_fs.glsl";
 glm::vec3 camera_pos(0.0f, 0.0f, 3.0f);
 
 // Lighting
-glm::vec3 light_pos(1.2f, 1.0f, 2.0f);
-glm::vec3 light_ambient(0.2f, 0.2f, 0.2f);
-glm::vec3 light_diffuse(0.5f, 0.5f, 0.5f);
-glm::vec3 light_specular(1.0f, 1.0f, 1.0f);
+struct Light
+{
+  glm::vec3 position;
+  glm::vec3 ambient;
+  glm::vec3 diffuse;
+  glm::vec3 specular;
+};
+
+Light light = {
+    glm::vec3(1.2f, 1.0f, 2.0f), // position
+    glm::vec3(0.2f, 0.2f, 0.2f), // ambient
+    glm::vec3(0.5f, 0.5f, 0.5f), // diffuse
+    glm::vec3(1.0f, 1.0f, 1.0f)  // specular
+};
 
 // Material
-glm::vec3 material_ambient(1.0f, 0.5f, 0.31f);
-glm::vec3 material_diffuse(1.0f, 0.5f, 0.31f);
-glm::vec3 material_specular(0.5f, 0.5f, 0.5f);
-const GLfloat material_shininess = 32.0f;
+struct Material
+{
+  glm::vec3 ambient;
+  glm::vec3 diffuse;
+  glm::vec3 specular;
+  float shininess;
+};
+
+Material material = {
+    glm::vec3(1.0f, 0.5f, 0.31f), // ambient
+    glm::vec3(1.0f, 0.5f, 0.31f), // diffuse
+    glm::vec3(0.5f, 0.5f, 0.5f),  // specular
+    32.0f                         // shininess
+};
 
 int main()
 {
@@ -240,16 +258,15 @@ int main()
   // - Normal matrix: normal vectors from local to world coordinates
   // - Camera position
   // - Light data
-  // Ubicaciones de las variables uniformes para la iluminación
-  light_pos_location = glGetUniformLocation(shader_program, "light_pos");
-  light_ambient_location = glGetUniformLocation(shader_program, "light_ambient");
-  light_diffuse_location = glGetUniformLocation(shader_program, "light_diffuse");
-  light_specular_location = glGetUniformLocation(shader_program, "light_specular");
+  lightPositionLocation = glGetUniformLocation(shader_program, "light.position");
+  lightAmbientLocation = glGetUniformLocation(shader_program, "light.ambient");
+  lightDiffuseLocation = glGetUniformLocation(shader_program, "light.diffuse");
+  lightSpecularLocation = glGetUniformLocation(shader_program, "light.specular");
   // - Material data
-  material_ambient_location = glGetUniformLocation(shader_program, "material_ambient");
-  material_diffuse_location = glGetUniformLocation(shader_program, "material_diffuse");
-  material_specular_location = glGetUniformLocation(shader_program, "material_specular");
-  material_shininess_location = glGetUniformLocation(shader_program, "material_shininess");
+  materialAmbientLocation = glGetUniformLocation(shader_program, "material.ambient");
+  materialDiffuseLocation = glGetUniformLocation(shader_program, "material.diffuse");
+  materialSpecularLocation = glGetUniformLocation(shader_program, "material.specular");
+  materialShininessLocation = glGetUniformLocation(shader_program, "material.shininess");
   // [...]
 
   // Render loop
@@ -302,16 +319,18 @@ void render(double currentTime)
   proj_matrix = glm::perspective(glm::radians(50.0f), (float)gl_width / (float)gl_height, 0.1f, 1000.0f);
   glUniformMatrix4fv(proj_location, 1, GL_FALSE, glm::value_ptr(proj_matrix));
 
-  // Normal matrix: normal vectors to world coordinates
-  glUniform3fv(light_pos_location, 1, glm::value_ptr(light_pos));
-  glUniform3fv(light_ambient_location, 1, glm::value_ptr(light_ambient));
-  glUniform3fv(light_diffuse_location, 1, glm::value_ptr(light_diffuse));
-  glUniform3fv(light_specular_location, 1, glm::value_ptr(light_specular));
+  // Obtener las ubicaciones de las variables uniformes light y material en el programa de sombreado
 
-  glUniform3fv(material_ambient_location, 1, glm::value_ptr(material_ambient));
-  glUniform3fv(material_diffuse_location, 1, glm::value_ptr(material_diffuse));
-  glUniform3fv(material_specular_location, 1, glm::value_ptr(material_specular));
-  glUniform1f(material_shininess_location, material_shininess);
+  // Enviar los valores de light y material al programa de sombreado
+  glUniform3fv(lightPositionLocation, 1, glm::value_ptr(light.position));
+  glUniform3fv(lightAmbientLocation, 1, glm::value_ptr(light.ambient));
+  glUniform3fv(lightDiffuseLocation, 1, glm::value_ptr(light.diffuse));
+  glUniform3fv(lightSpecularLocation, 1, glm::value_ptr(light.specular));
+
+  glUniform3fv(materialAmbientLocation, 1, glm::value_ptr(material.ambient));
+  glUniform3fv(materialDiffuseLocation, 1, glm::value_ptr(material.diffuse));
+  glUniform3fv(materialSpecularLocation, 1, glm::value_ptr(material.specular));
+  glUniform1f(materialShininessLocation, material.shininess);
 
   glDrawArrays(GL_TRIANGLES, 0, 36);
 }
