@@ -243,6 +243,7 @@ int main()
   glEnableVertexAttribArray(0);
 
   // 1: vertex normals (x, y, z)
+  
 
   // Unbind vbo (it was conveniently registered by VertexAttribPointer)
   glBindBuffer(GL_ARRAY_BUFFER, 0);
