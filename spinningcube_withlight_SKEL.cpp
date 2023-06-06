@@ -20,6 +20,7 @@ int gl_height = 480;
 void glfw_window_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
 void render(double);
+void getAllNormals(GLfloat *normals, const GLfloat polygon[], const int size);
 
 GLuint shader_program = 0; // shader program to set render pipeline
 GLuint vao = 0;            // Vertext Array Object to set input data
@@ -34,7 +35,7 @@ const char *vertexFileName = "spinningcube_withlight_vs.glsl";
 const char *fragmentFileName = "spinningcube_withlight_fs.glsl";
 
 // Camera
-glm::vec3 camera_pos(0.0f, 0.0f, 3.0f);
+glm::vec3 camera_pos(0.0f, 0.0f, 2.0f);
 
 // Lighting
 struct Light
@@ -76,11 +77,6 @@ int main()
     fprintf(stderr, "ERROR: could not start GLFW3\n");
     return 1;
   }
-
-  //  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  //  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-  //  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-  //  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
   GLFWwindow *window = glfwCreateWindow(gl_width, gl_height, "My spinning cube", NULL, NULL);
   if (!window)
@@ -243,13 +239,30 @@ int main()
   glEnableVertexAttribArray(0);
 
   // 1: vertex normals (x, y, z)
-  
+  GLfloat normals[sizeof(GLfloat) * (sizeof(vertex_positions) / sizeof(vertex_positions[0]))] = {};
+  int size = (sizeof(vertex_positions) / sizeof(vertex_positions[0]));
+  getAllNormals(normals, vertex_positions, size);
+
+  GLuint normalsBuffer = 0;
+  glGenBuffers(1, &normalsBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, normalsBuffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
+
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray(1);
+
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  // note that we update the lamp's position attribute's stride to reflect the updated buffer data
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray(0);
 
   // Unbind vbo (it was conveniently registered by VertexAttribPointer)
   glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, 1);
 
   // Unbind vao
   glBindVertexArray(0);
+  glBindVertexArray(1);
 
   // Uniforms
   // - Model matrix
@@ -295,6 +308,8 @@ int main()
 void render(double currentTime)
 {
 
+  float f = (float)currentTime * 0.2f;
+
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   glViewport(0, 0, gl_width, gl_height);
@@ -302,39 +317,39 @@ void render(double currentTime)
   glUseProgram(shader_program);
   glBindVertexArray(vao);
 
-  glm::mat4 model_matrix, normal_matrix, projection_matrix, view_matrix;
+  glm::mat4 model_matrix, view_matrix, proj_matrix;
+  glm::mat3 normal_matrix;
 
-  // view_matrix = glm::lookAt(camera_pos,                   // pos
-  //                           glm::vec3(0.0f, 0.0f, 0.0f),  // target
-  //                           glm::vec3(0.0f, 1.0f, 0.0f)); // up
-  // glUniformMatrix4fv(view_location, 1, GL_FALSE, glm::value_ptr(view_matrix));
+  model_matrix = glm::mat4(1.f);
+  
+  // Camara
+  view_matrix = glm::lookAt(                 camera_pos,  // pos
+                            glm::vec3(0.0f, 0.0f, 0.0f),  // target
+                            glm::vec3(0.0f, 1.0f, 0.0f)); // up
 
   // Moving cube
-  view_matrix = glm::mat4(1.0f);
-  view_matrix = glm::translate(glm::mat4(1.f), glm::vec3(0.0f, 0.0f, -2.0f));
-  view_matrix = glm::rotate(view_matrix,
-                            glm::radians(45.0f),
-                            glm::vec3(0.0f, 1.0f, 0.0f));
-  view_matrix = glm::rotate(view_matrix,
-                            glm::radians(45.0f),
+  // Teniendo en cuenta el tiempo actual, se rota el cubo tanto horizontal
+  // como verticalmente
+  model_matrix = glm::rotate(model_matrix,
+                          glm::radians((float)currentTime * 30.0f),
+                          glm::vec3(0.0f, 1.0f, 0.0f));
+
+  model_matrix = glm::rotate(model_matrix,
+                            glm::radians((float)currentTime * 81.0f),
                             glm::vec3(1.0f, 0.0f, 0.0f));
 
-  glUniformMatrix4fv(view_location, 1, GL_FALSE, glm::value_ptr(view_matrix));
-  //
   // Projection
-  projection_matrix = glm::perspective(glm::radians(50.0f), (float)gl_width / (float)gl_height, 0.1f, 1000.0f);
-  glUniformMatrix4fv(projection_location, 1, GL_FALSE, glm::value_ptr(projection_matrix));
-
-  // Normal
-  model_matrix = glm::mat4(1.0f);
+  proj_matrix = glm::perspective(glm::radians(50.0f),
+                                 (float) gl_width / (float) gl_height,
+                                 0.1f, 1000.0f);
+  
+  glUniformMatrix4fv(view_location, 1, GL_FALSE, glm::value_ptr(view_matrix));
   glUniformMatrix4fv(model_location, 1, GL_FALSE, glm::value_ptr(model_matrix));
-
+  glUniformMatrix4fv(projection_location, 1, GL_FALSE, glm::value_ptr(proj_matrix));
+  
+  // Normal matrix: normal vectors to world coordinates
   normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
-  glUniformMatrix4fv(normal_matrix_location, 1, GL_FALSE, glm::value_ptr(normal_matrix));
-
-  // view pos
-  glm::vec3 viewPosValue(0, 0, 0);
-  glUniform3fv(viewPosLocation, 1, glm::value_ptr(viewPosValue));
+  glUniformMatrix3fv(normal_matrix_location, 1, GL_FALSE, glm::value_ptr(normal_matrix));
 
   // Enviar los valores de light y material al programa de sombreado
   glUniform3fv(lightPositionLocation, 1, glm::value_ptr(light.position));
@@ -347,6 +362,9 @@ void render(double currentTime)
   glUniform3fv(materialSpecularLocation, 1, glm::value_ptr(material.specular));
   glUniform1f(materialShininessLocation, material.shininess);
 
+  glUniform3fv(viewPosLocation, 1, glm::value_ptr(camera_pos));
+
+  //glBindVertexArray(*cubeVAO);
   glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
@@ -362,4 +380,37 @@ void glfw_window_size_callback(GLFWwindow *window, int width, int height)
   gl_width = width;
   gl_height = height;
   printf("New viewport: (width: %d, height: %d)\n", width, height);
+}
+
+// Obtenemos las normales de todo el poligono
+// size es la longitud del array del poligono
+void getAllNormals(GLfloat *normals, const GLfloat polygon[], const int size)
+{
+  printf("Tamaño: %d\n", size);
+  for (int i = 0; i < size; i += 9)
+  {
+
+    GLfloat v1[] = {polygon[i], polygon[i + 1], polygon[i + 2]};
+    GLfloat v2[] = {polygon[i + 3], polygon[i + 4], polygon[i + 5]};
+    GLfloat v3[] = {polygon[i + 6], polygon[i + 7], polygon[i + 8]};
+
+    GLfloat U[] = {v2[0] - v1[0], v2[1] - v1[1], v2[2] - v1[2]};
+    GLfloat V[] = {v3[0] - v1[0], v3[1] - v1[1], v3[2] - v1[2]};
+
+    GLfloat x = U[1] * V[2] - U[2] * V[1];
+    GLfloat y = U[2] * V[0] - U[0] * V[2];
+    GLfloat z = U[0] * V[1] - U[1] * V[0];
+
+    normals[i] = x;
+    normals[i + 3] = x;
+    normals[i + 6] = x;
+
+    normals[i + 1] = y;
+    normals[i + 4] = y;
+    normals[i + 7] = y;
+
+    normals[i + 2] = z;
+    normals[i + 5] = z;
+    normals[i + 8] = z;
+  }
 }
