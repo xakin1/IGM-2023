@@ -19,11 +19,11 @@ int gl_height = 480;
 
 void glfw_window_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
-void render(double);
+void render(double, GLuint *vaos[]);
 void getAllNormals(GLfloat *normals, const GLfloat polygon[], const int size);
+void calcPolygon(const GLfloat vertex_positions[], int index);
 
 GLuint shader_program = 0; // shader program to set render pipeline
-GLuint vao = 0;            // Vertext Array Object to set input data
 
 GLint view_location, projection_location, model_location, normal_matrix_location;
 GLint lightPositionLocation, lightAmbientLocation, lightDiffuseLocation, lightSpecularLocation;
@@ -68,6 +68,47 @@ Material material = {
     glm::vec3(0.5f, 0.5f, 0.5f),  // specular
     32.0f                         // shininess
 };
+
+glm::vec3 translation(1.0f, 0.0f, 0.0f);
+
+void calcPolygon(const GLfloat vertex_positions[], int size, GLuint *vao)
+{
+  int index = 0;
+
+  // Vertex Array Object
+  glGenVertexArrays(1, vao);
+  glBindVertexArray(*vao);
+
+  // Vertex Buffer Object (for vertex coordinates)
+  GLuint vbo = 0;
+  glGenBuffers(1, &vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, vbo);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size, vertex_positions, GL_STATIC_DRAW);
+
+  // Vertex attributes
+  // 0: vertex position (x, y, z)
+  glVertexAttribPointer(index, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray(index);
+
+  // 1: vertex normals (x, y, z)
+  GLfloat normals[sizeof(GLfloat) * size] = {};
+  getAllNormals(normals, vertex_positions, size);
+
+  GLuint normalsBuffer = 0;
+  glGenBuffers(1, &normalsBuffer);
+  glBindBuffer(GL_ARRAY_BUFFER, normalsBuffer);
+  glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
+
+  glVertexAttribPointer(index + 1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray(index + 1);
+
+  // Unbind vbo (it was conveniently registered by VertexAttribPointer)
+  glBindBuffer(GL_ARRAY_BUFFER, index);
+  glBindBuffer(GL_ARRAY_BUFFER, index + 1);
+
+  // Unbind vao
+  glBindVertexArray(0);
+}
 
 int main()
 {
@@ -164,10 +205,6 @@ int main()
   glDeleteShader(vs);
   glDeleteShader(fs);
 
-  // Vertex Array Object
-  glGenVertexArrays(1, &vao);
-  glBindVertexArray(vao);
-
   // Cube to be rendered
   //
   //          0        3
@@ -177,7 +214,34 @@ int main()
   // far ---> 1        2
   //       6        5
   //
-  const GLfloat vertex_positions[] = {
+  const GLfloat vertex_positions_pyramid[] = {
+      -0.25f, -0.25f, -0.25f, // 1
+      -0.25f, 0.25f, -0.25f,  // 0
+      0.25f, -0.25f, -0.25f,  // 2
+
+      0.25f, 0.25f, -0.25f,  // 3
+      0.25f, -0.25f, -0.25f, // 2
+      -0.25f, 0.25f, -0.25f, // 0
+
+      0.25f, -0.25f, -0.25f, // 2
+      0.25f, 0.25f, -0.25f,  // 3
+      0.0f, 0.0f, 0.25f,     // 4
+
+      -0.25f, -0.25f, -0.25f, // 1
+      0.25f, -0.25f, -0.25f,  // 2
+      0.0f, 0.0f, 0.25f,      // 4
+
+      -0.25f, -0.25f, -0.25f, // 1
+      -0.25f, 0.25f, -0.25f,  // 0
+      0.0f, 0.0f, 0.25f,      // 4
+
+      0.25f, 0.25f, -0.25f,  // 3
+      -0.25f, 0.25f, -0.25f, // 0
+      0.0f, 0.0f, 0.25f,     // 4
+
+  };
+
+  const GLfloat vertex_positions_cube[] = {
       -0.25f, -0.25f, -0.25f, // 1
       -0.25f, 0.25f, -0.25f,  // 0
       0.25f, -0.25f, -0.25f,  // 2
@@ -227,42 +291,18 @@ int main()
       0.25f, 0.25f, -0.25f   // 3
   };
 
-  // Vertex Buffer Object (for vertex coordinates)
-  GLuint vbo = 0;
-  glGenBuffers(1, &vbo);
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(vertex_positions), vertex_positions, GL_STATIC_DRAW);
+  GLuint cubeVao;    // Vertext Array Object to set input data
+  GLuint pyramidVao; // Vertext Array Object to set input data
 
-  // Vertex attributes
-  // 0: vertex position (x, y, z)
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-  glEnableVertexAttribArray(0);
+  int vertexCount = sizeof(vertex_positions_pyramid) / sizeof(vertex_positions_pyramid[0]);
 
-  // 1: vertex normals (x, y, z)
-  GLfloat normals[sizeof(GLfloat) * (sizeof(vertex_positions) / sizeof(vertex_positions[0]))] = {};
-  int size = (sizeof(vertex_positions) / sizeof(vertex_positions[0]));
-  getAllNormals(normals, vertex_positions, size);
+  calcPolygon(vertex_positions_pyramid, vertexCount, &pyramidVao);
 
-  GLuint normalsBuffer = 0;
-  glGenBuffers(1, &normalsBuffer);
-  glBindBuffer(GL_ARRAY_BUFFER, normalsBuffer);
-  glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
+  vertexCount = sizeof(vertex_positions_cube) / sizeof(vertex_positions_cube[0]);
 
-  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-  glEnableVertexAttribArray(1);
+  calcPolygon(vertex_positions_cube, vertexCount, &cubeVao);
 
-  glBindBuffer(GL_ARRAY_BUFFER, vbo);
-  // note that we update the lamp's position attribute's stride to reflect the updated buffer data
-  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-  glEnableVertexAttribArray(0);
-
-  // Unbind vbo (it was conveniently registered by VertexAttribPointer)
-  glBindBuffer(GL_ARRAY_BUFFER, 0);
-  glBindBuffer(GL_ARRAY_BUFFER, 1);
-
-  // Unbind vao
-  glBindVertexArray(0);
-  glBindVertexArray(1);
+  GLuint *vaos[] = {&pyramidVao, &cubeVao};
 
   // Uniforms
   // - Model matrix
@@ -293,7 +333,7 @@ int main()
 
     processInput(window);
 
-    render(glfwGetTime());
+    render(glfwGetTime(), vaos);
 
     glfwSwapBuffers(window);
 
@@ -305,7 +345,7 @@ int main()
   return 0;
 }
 
-void render(double currentTime)
+void render(double currentTime, GLuint *vaos[])
 {
 
   float f = (float)currentTime * 0.2f;
@@ -315,15 +355,15 @@ void render(double currentTime)
   glViewport(0, 0, gl_width, gl_height);
 
   glUseProgram(shader_program);
-  glBindVertexArray(vao);
+  glBindVertexArray(*vaos[0]);
 
   glm::mat4 model_matrix, view_matrix, proj_matrix;
   glm::mat3 normal_matrix;
 
   model_matrix = glm::mat4(1.f);
-  
+
   // Camara
-  view_matrix = glm::lookAt(                 camera_pos,  // pos
+  view_matrix = glm::lookAt(camera_pos,                   // pos
                             glm::vec3(0.0f, 0.0f, 0.0f),  // target
                             glm::vec3(0.0f, 1.0f, 0.0f)); // up
 
@@ -331,22 +371,22 @@ void render(double currentTime)
   // Teniendo en cuenta el tiempo actual, se rota el cubo tanto horizontal
   // como verticalmente
   model_matrix = glm::rotate(model_matrix,
-                          glm::radians((float)currentTime * 30.0f),
-                          glm::vec3(0.0f, 1.0f, 0.0f));
+                             glm::radians((float)currentTime * 30.0f),
+                             glm::vec3(0.0f, 1.0f, 0.0f));
 
   model_matrix = glm::rotate(model_matrix,
-                            glm::radians((float)currentTime * 81.0f),
-                            glm::vec3(1.0f, 0.0f, 0.0f));
+                             glm::radians((float)currentTime * 81.0f),
+                             glm::vec3(1.0f, 0.0f, 0.0f));
 
   // Projection
   proj_matrix = glm::perspective(glm::radians(50.0f),
-                                 (float) gl_width / (float) gl_height,
+                                 (float)gl_width / (float)gl_height,
                                  0.1f, 1000.0f);
-  
+
   glUniformMatrix4fv(view_location, 1, GL_FALSE, glm::value_ptr(view_matrix));
   glUniformMatrix4fv(model_location, 1, GL_FALSE, glm::value_ptr(model_matrix));
   glUniformMatrix4fv(projection_location, 1, GL_FALSE, glm::value_ptr(proj_matrix));
-  
+
   // Normal matrix: normal vectors to world coordinates
   normal_matrix = glm::transpose(glm::inverse(glm::mat3(model_matrix)));
   glUniformMatrix3fv(normal_matrix_location, 1, GL_FALSE, glm::value_ptr(normal_matrix));
@@ -364,7 +404,14 @@ void render(double currentTime)
 
   glUniform3fv(viewPosLocation, 1, glm::value_ptr(camera_pos));
 
-  //glBindVertexArray(*cubeVAO);
+  glDrawArrays(GL_TRIANGLES, 0, 36);
+
+  model_matrix = glm::translate(model_matrix, translation);
+
+  glUniformMatrix4fv(model_location, 1, GL_FALSE, glm::value_ptr(model_matrix));
+
+  glBindVertexArray(*vaos[1]);
+
   glDrawArrays(GL_TRIANGLES, 0, 36);
 }
 
