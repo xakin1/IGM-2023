@@ -14,21 +14,25 @@
 
 #include "textfile_ALT.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 int gl_width = 640;
 int gl_height = 480;
 
 void glfw_window_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
-void render(double, GLuint *vaos[]);
+void render(double, GLuint *vaos[], unsigned int diffuseMap);
 void getAllNormals(GLfloat *normals, const GLfloat polygon[], const int size);
-void calcPolygon(const GLfloat vertex_positions[], int index);
+void calcPolygon(const GLfloat vertex_positions[], const GLfloat coords_texture[], int size, int texture_size, GLuint *vao);
+unsigned int loadTexture(char const *path);
 
 GLuint shader_program = 0; // shader program to set render pipeline
 
 GLint view_location, projection_location, model_location, normal_matrix_location;
 GLint lightPositionLocation, lightAmbientLocation, lightDiffuseLocation, lightSpecularLocation;
 GLint lightPositionLocation2, lightAmbientLocation2, lightDiffuseLocation2, lightSpecularLocation2;
-GLint materialAmbientLocation, materialDiffuseLocation, materialSpecularLocation, materialShininessLocation;
+GLint materialSpecularLocation, materialShininessLocation;
 GLint viewPosLocation;
 
 // Shader names
@@ -64,24 +68,19 @@ Light light2 = {
 // Material
 struct Material
 {
-  glm::vec3 ambient;
-  glm::vec3 diffuse;
   glm::vec3 specular;
   float shininess;
 };
 
 Material material = {
-    glm::vec3(1.0f, 0.5f, 0.31f), // ambient
-    glm::vec3(1.0f, 0.5f, 0.31f), // diffuse
     glm::vec3(0.5f, 0.5f, 0.5f),  // specular
     32.0f                         // shininess
 };
 
 glm::vec3 translation(1.0f, 0.0f, 0.0f);
 
-void calcPolygon(const GLfloat vertex_positions[], int size, GLuint *vao)
+void calcPolygon(const GLfloat vertex_positions[], const GLfloat coords_texture[], int size, int texture_size, GLuint *vao)
 {
-  int index = 0;
 
   // Vertex Array Object
   glGenVertexArrays(1, vao);
@@ -95,8 +94,8 @@ void calcPolygon(const GLfloat vertex_positions[], int size, GLuint *vao)
 
   // Vertex attributes
   // 0: vertex position (x, y, z)
-  glVertexAttribPointer(index, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-  glEnableVertexAttribArray(index);
+  glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray(0);
 
   // 1: vertex normals (x, y, z)
   GLfloat normals[sizeof(GLfloat) * size] = {};
@@ -107,12 +106,22 @@ void calcPolygon(const GLfloat vertex_positions[], int size, GLuint *vao)
   glBindBuffer(GL_ARRAY_BUFFER, normalsBuffer);
   glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
 
-  glVertexAttribPointer(index + 1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-  glEnableVertexAttribArray(index + 1);
+
+  glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray(1);
+
+  // Calculo texturas
+  GLuint texture_cords_buffer = 0;
+  glGenBuffers(1, &texture_cords_buffer);
+  glBindBuffer(GL_ARRAY_BUFFER, texture_cords_buffer);
+  glBufferData(GL_ARRAY_BUFFER, texture_size, coords_texture, GL_STATIC_DRAW);
+
+  glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+  glEnableVertexAttribArray(2);
 
   // Unbind vbo (it was conveniently registered by VertexAttribPointer)
-  glBindBuffer(GL_ARRAY_BUFFER, index);
-  glBindBuffer(GL_ARRAY_BUFFER, index + 1);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ARRAY_BUFFER, 1);
 
   // Unbind vao
   glBindVertexArray(0);
@@ -291,16 +300,66 @@ int main()
       0.25f, 0.25f, -0.25f   // 3
   };
 
+  GLfloat coords_texture_cube[] = {
+      1.0f, 0.0f, // 1
+      1.0f, 1.0f, // 0
+      0.0f, 0.0f, // 2
+
+      0.0f, 1.0f, // 3
+      0.0f, 0.0f, // 2
+      1.0f, 1.0f, // 0
+
+      1.0f, 0.0f, // 2
+      1.0f, 1.0f, // 3
+      0.0f, 0.0f, // 5
+
+      0.0f, 1.0f, // 4
+      0.0f, 0.0f, // 5
+      1.0f, 1.0f, // 3
+
+      1.0f, 0.0f, // 5
+      1.0f, 1.0f, // 4
+      0.0f, 0.0f, // 6
+
+      0.0f, 1.0f, // 7
+      0.0f, 0.0f, // 6
+      1.0f, 1.0f, // 4
+
+      1.0f, 0.0f, // 6
+      1.0f, 1.0f, // 7
+      0.0f, 0.0f, // 1
+
+      0.0f, 1.0f, // 0
+      0.0f, 0.0f, // 1
+      1.0f, 1.0f, // 7
+
+      1.0f, 0.0f, // 2
+      1.0f, 1.0f, // 5
+      0.0f, 0.0f, // 1
+
+      0.0f, 1.0f, // 6
+      0.0f, 0.0f, // 1
+      1.0f, 1.0f, // 5
+
+      1.0f, 0.0f, // 4
+      1.0f, 1.0f, // 3
+      0.0f, 0.0f, // 7
+
+      0.0f, 1.0f, // 0
+      0.0f, 0.0f, // 7
+      1.0f, 1.0f  // 3
+  };
+
   GLuint cubeVao;    // Vertext Array Object to set input data
   GLuint pyramidVao; // Vertext Array Object to set input data
 
   int vertexCount = sizeof(vertex_positions_pyramid) / sizeof(vertex_positions_pyramid[0]);
 
-  calcPolygon(vertex_positions_pyramid, vertexCount, &pyramidVao);
+  calcPolygon(vertex_positions_pyramid, coords_texture_cube, vertexCount, sizeof(coords_texture_cube), &pyramidVao);
 
   vertexCount = sizeof(vertex_positions_cube) / sizeof(vertex_positions_cube[0]);
 
-  calcPolygon(vertex_positions_cube, vertexCount, &cubeVao);
+  calcPolygon(vertex_positions_cube, coords_texture_cube, vertexCount, sizeof(coords_texture_cube), &cubeVao);
 
   GLuint *vaos[] = {&pyramidVao, &cubeVao};
 
@@ -325,12 +384,13 @@ int main()
   lightDiffuseLocation2 = glGetUniformLocation(shader_program, "light2.diffuse");
   lightSpecularLocation2 = glGetUniformLocation(shader_program, "light2.specular");
   // - Material data
-  materialAmbientLocation = glGetUniformLocation(shader_program, "material.ambient");
-  materialDiffuseLocation = glGetUniformLocation(shader_program, "material.diffuse");
   materialSpecularLocation = glGetUniformLocation(shader_program, "material.specular");
   materialShininessLocation = glGetUniformLocation(shader_program, "material.shininess");
   // [...]
   viewPosLocation = glGetUniformLocation(shader_program, "view_pos");
+
+  // Textura mapa difuso
+  unsigned int diffuse_map = loadTexture("./textures/container2.png");
 
   // Render loop
   while (!glfwWindowShouldClose(window))
@@ -338,7 +398,7 @@ int main()
 
     processInput(window);
 
-    render(glfwGetTime(), vaos);
+    render(glfwGetTime(), vaos, diffuse_map);
 
     glfwSwapBuffers(window);
 
@@ -350,11 +410,8 @@ int main()
   return 0;
 }
 
-void render(double currentTime, GLuint *vaos[])
+void render(double currentTime, GLuint *vaos[], unsigned int diffuse_map)
 {
-
-  float f = (float)currentTime * 0.2f;
-
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   glViewport(0, 0, gl_width, gl_height);
@@ -407,8 +464,6 @@ void render(double currentTime, GLuint *vaos[])
   glUniform3fv(lightDiffuseLocation2, 1, glm::value_ptr(light2.diffuse));
   glUniform3fv(lightSpecularLocation2, 1, glm::value_ptr(light2.specular));
 
-  glUniform3fv(materialAmbientLocation, 1, glm::value_ptr(material.ambient));
-  glUniform3fv(materialDiffuseLocation, 1, glm::value_ptr(material.diffuse));
   glUniform3fv(materialSpecularLocation, 1, glm::value_ptr(material.specular));
   glUniform1f(materialShininessLocation, material.shininess);
 
@@ -470,4 +525,37 @@ void getAllNormals(GLfloat *normals, const GLfloat polygon[], const int size)
     normals[i + 5] = z;
     normals[i + 8] = z;
   }
+}
+
+unsigned int loadTexture(char const *path)
+{
+  unsigned int textureID;
+  glGenTextures(1, &textureID);
+  int width, height, nrComponents;
+  unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+  if (data)
+  {
+    GLenum format;
+    if (nrComponents == 1)
+      format = GL_RED;
+    else if (nrComponents == 3)
+      format = GL_RGB;
+    else if (nrComponents == 4)
+      format = GL_RGBA;
+    glBindTexture(GL_TEXTURE_2D, textureID);
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+    glGenerateMipmap(GL_TEXTURE_2D);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    stbi_image_free(data);
+  }
+  else
+  {
+    fprintf(stderr, "Texture failed to load at path: ");
+    stbi_image_free(data);
+  }
+
+  return textureID;
 }
