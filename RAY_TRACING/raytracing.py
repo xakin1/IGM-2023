@@ -75,6 +75,8 @@ def intersect_sphere(O, D, S, R):
 
 # Calcula la intersección entre un rayo y un triángulo
 # O: Origen rayo, D: Dirección rayo, V0, V1, V2: Vértices triángulo
+
+
 def intersect_triangle(O, D, V0, V1, V2):
     E1 = V1 - V0
     E2 = V2 - V0
@@ -116,7 +118,8 @@ def get_normal(obj, M):
     elif obj['type'] == 'plane':
         N = obj['normal']
     elif obj['type'] == 'triangle':
-        N = normalize(np.cross(obj['vertices'][1] - obj['vertices'][0], obj['vertices'][2] - obj['vertices'][0]))
+        N = normalize(np.cross(
+            obj['vertices'][1] - obj['vertices'][0], obj['vertices'][2] - obj['vertices'][0]))
     return N
 
 # obj: Objeto de la escena, M: punto de intersección
@@ -182,8 +185,11 @@ def add_plane(position, normal):
                 diffuse_c=.75, specular_c=.5, reflection=.25)
 
 # Agrega un triángulo a la escena
+
+
 def add_triangle(vertices, color):
     return dict(type='triangle', vertices=np.array(vertices), color=np.array(color), reflection=.5)
+
 
 # List of objects.
 color_plane0 = 1. * np.ones(3)
@@ -208,8 +214,7 @@ color_light3 = np.array([2.0, 0.5, 1.0])
 L4 = np.array([2., 2., -6.])
 color_light4 = np.array([1.0, 4.0, 2.0])
 
-lights = [(L1, color_light1), (L2, color_light2),
-          (L3, color_light3), (L4, color_light4)]
+lights = [(L1, color_light1)]
 
 # Default light and material parameters.
 ambient = .05
@@ -219,13 +224,13 @@ specular_k = 50
 
 depth_max = 5  # Maximum number of light reflections.
 col = np.zeros(3)  # Current color.
-O = np.array([0., 0.35, -1.])  # Camera.
+O = np.array([0., 5, -5.])
 Q = np.array([0., 0., 0.])  # Camera pointing to.
 img = np.zeros((h, w, 3))
 
 r = float(w) / h
 # Screen coordinates: x0, y0, x1, y1.
-S = (-1., -1. / r + .25, 1., 1. / r + .25)
+S = (-2., -2. / r + .25, 4., 4. / r + .25)
 
 # Loop through all pixels.
 for i, x in enumerate(np.linspace(S[0], S[2], w)):
