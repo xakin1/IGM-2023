@@ -73,12 +73,38 @@ def intersect_sphere(O, D, S, R):
             return t1 if t0 < 0 else t0
     return np.inf
 
+# Calcula la intersección entre un rayo y un triángulo
+# O: Origen rayo, D: Dirección rayo, V0, V1, V2: Vértices triángulo
+def intersect_triangle(O, D, V0, V1, V2):
+    E1 = V1 - V0
+    E2 = V2 - V0
+    P = np.cross(D, E2)
+    det = np.dot(E1, P)
+    if np.abs(det) < 1e-6:
+        return np.inf
+    inv_det = 1.0 / det
+    T = O - V0
+    u = np.dot(T, P) * inv_det
+    if u < 0 or u > 1:
+        return np.inf
+    Q = np.cross(T, E1)
+    v = np.dot(D, Q) * inv_det
+    if v < 0 or u + v > 1:
+        return np.inf
+    t = np.dot(E2, Q) * inv_det
+    if t < 0:
+        return np.inf
+    return t
+
 
 def intersect(O, D, obj):
     if obj['type'] == 'plane':
         return intersect_plane(O, D, obj['position'], obj['normal'])
     elif obj['type'] == 'sphere':
         return intersect_sphere(O, D, obj['position'], obj['radius'])
+    elif obj['type'] == 'triangle':
+        return intersect_triangle(O, D, obj['vertices'][0], obj['vertices'][1], obj['vertices'][2])
+
 
 # obj: Objeto de la escena, M: punto de intersección
 
@@ -89,6 +115,8 @@ def get_normal(obj, M):
         N = normalize(M - obj['position'])
     elif obj['type'] == 'plane':
         N = obj['normal']
+    elif obj['type'] == 'triangle':
+        N = normalize(np.cross(obj['vertices'][1] - obj['vertices'][0], obj['vertices'][2] - obj['vertices'][0]))
     return N
 
 # obj: Objeto de la escena, M: punto de intersección
@@ -153,15 +181,19 @@ def add_plane(position, normal):
                                  if (int(M[0] * 2) % 2) == (int(M[2] * 2) % 2) else color_plane1),
                 diffuse_c=.75, specular_c=.5, reflection=.25)
 
+# Agrega un triángulo a la escena
+def add_triangle(vertices, color):
+    return dict(type='triangle', vertices=np.array(vertices), color=np.array(color), reflection=.5)
 
 # List of objects.
 color_plane0 = 1. * np.ones(3)
 color_plane1 = 0. * np.ones(3)
-scene = [add_sphere([.75, .1, 1.], .6, [0., 0., 1.]),
-         add_sphere([-.75, .1, 2.25], .6, [.5, .223, .5]),
-         add_sphere([-2.75, .1, 3.5], .6, [1., .572, .184]),
-         add_plane([0., -.5, 0.], [0., 1., 0.]),
-         ]
+scene = [
+    add_triangle([[0, 0, 0], [0.5, 0.5, 0], [1, 0, 0]], [1., 1., 0.]),
+    add_sphere([-.75, .1, 2.25], .4, [.5, .223, .5]),
+    add_sphere([-2.75, .1, 3.5], .8, [1., .572, .184]),
+    add_plane([0., -.5, 0.], [0., 1., 0.])
+]
 
 # Light position and color.
 L1 = np.array([5., 5., -10.])
