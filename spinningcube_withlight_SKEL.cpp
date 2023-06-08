@@ -22,7 +22,7 @@ int gl_height = 480;
 
 void glfw_window_size_callback(GLFWwindow *window, int width, int height);
 void processInput(GLFWwindow *window);
-void render(double, GLuint *vaos[], unsigned int diffuseMap);
+void render(double currentTime, GLuint *vaos[], unsigned int diffuse_map, unsigned int specular_map);
 void getAllNormals(GLfloat *normals, const GLfloat polygon[], const int size);
 void calcPolygon(const GLfloat vertex_positions[], const GLfloat coords_texture[], int size, int texture_size, GLuint *vao);
 unsigned int loadTexture(char const *path);
@@ -32,7 +32,7 @@ GLuint shader_program = 0; // shader program to set render pipeline
 GLint view_location, projection_location, model_location, normal_matrix_location;
 GLint lightPositionLocation, lightAmbientLocation, lightDiffuseLocation, lightSpecularLocation;
 GLint lightPositionLocation2, lightAmbientLocation2, lightDiffuseLocation2, lightSpecularLocation2;
-GLint materialSpecularLocation, materialShininessLocation;
+GLint materialDiffuseLocation, materialSpecularLocation, materialShininessLocation;
 GLint viewPosLocation;
 
 // Shader names
@@ -68,13 +68,11 @@ Light light2 = {
 // Material
 struct Material
 {
-  glm::vec3 specular;
   float shininess;
 };
 
 Material material = {
-    glm::vec3(0.5f, 0.5f, 0.5f),  // specular
-    32.0f                         // shininess
+    32.0f // shininess
 };
 
 glm::vec3 translation(1.0f, 0.0f, 0.0f);
@@ -105,7 +103,6 @@ void calcPolygon(const GLfloat vertex_positions[], const GLfloat coords_texture[
   glGenBuffers(1, &normalsBuffer);
   glBindBuffer(GL_ARRAY_BUFFER, normalsBuffer);
   glBufferData(GL_ARRAY_BUFFER, sizeof(normals), normals, GL_STATIC_DRAW);
-
 
   glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
   glEnableVertexAttribArray(1);
@@ -384,13 +381,17 @@ int main()
   lightDiffuseLocation2 = glGetUniformLocation(shader_program, "light2.diffuse");
   lightSpecularLocation2 = glGetUniformLocation(shader_program, "light2.specular");
   // - Material data
-  materialSpecularLocation = glGetUniformLocation(shader_program, "material.specular");
   materialShininessLocation = glGetUniformLocation(shader_program, "material.shininess");
+  materialDiffuseLocation = glGetUniformLocation(shader_program, "material.diffuse");
+  materialSpecularLocation = glGetUniformLocation(shader_program, "material.specular");
   // [...]
   viewPosLocation = glGetUniformLocation(shader_program, "view_pos");
 
   // Textura mapa difuso
   unsigned int diffuse_map = loadTexture("./textures/container2.png");
+
+  // Textura mapa especular
+  unsigned int specular_map = loadTexture("./textures/container2_specular.png");
 
   // Render loop
   while (!glfwWindowShouldClose(window))
@@ -398,7 +399,7 @@ int main()
 
     processInput(window);
 
-    render(glfwGetTime(), vaos, diffuse_map);
+    render(glfwGetTime(), vaos, diffuse_map, specular_map);
 
     glfwSwapBuffers(window);
 
@@ -410,7 +411,7 @@ int main()
   return 0;
 }
 
-void render(double currentTime, GLuint *vaos[], unsigned int diffuse_map)
+void render(double currentTime, GLuint *vaos[], unsigned int diffuse_map, unsigned int specular_map)
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -464,10 +465,19 @@ void render(double currentTime, GLuint *vaos[], unsigned int diffuse_map)
   glUniform3fv(lightDiffuseLocation2, 1, glm::value_ptr(light2.diffuse));
   glUniform3fv(lightSpecularLocation2, 1, glm::value_ptr(light2.specular));
 
-  glUniform3fv(materialSpecularLocation, 1, glm::value_ptr(material.specular));
   glUniform1f(materialShininessLocation, material.shininess);
+  glUniform1i(materialDiffuseLocation, 0);
+  glUniform1i(materialSpecularLocation, 1);
 
   glUniform3fv(viewPosLocation, 1, glm::value_ptr(camera_pos));
+
+  // diffuse_map
+  glActiveTexture(GL_TEXTURE0);
+  glBindTexture(GL_TEXTURE_2D, diffuse_map);
+
+  // specular_map
+  glActiveTexture(GL_TEXTURE1);
+  glBindTexture(GL_TEXTURE_2D, specular_map);
 
   glDrawArrays(GL_TRIANGLES, 0, 36);
 

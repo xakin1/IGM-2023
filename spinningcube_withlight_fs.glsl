@@ -8,7 +8,7 @@ in vec2 TexCoords;
 
 struct Material {
     sampler2D diffuse;
-    vec3 specular;
+    sampler2D specular;
     float shininess;
 };
 
@@ -38,22 +38,22 @@ void main() {
     vec3 view_dir = normalize(view_pos - frag_3Dpos);
     vec3 reflect_dir = reflect(-light_dir, normal);
     float spec = pow(max(dot(view_dir, reflect_dir), 0.0), material.shininess);
-    vec3 specular = light.specular * spec * material.specular;
+    vec3 specular = light.specular * spec * vec3(texture(material.specular, TexCoords));
 
 
-    // ambient
+    // ambient 2
     vec3 ambient2 = light2.ambient * vec3(texture(material.diffuse, TexCoords));
 
     vec3 light2_dir  = normalize(light2.position - frag_3Dpos);
-    // diffuse 
+    // diffuse 2
     float diff2 = max(dot(normal, light2_dir), 0.0);
     vec3 diffuse2 = light2.diffuse * diff2 * vec3(texture(material.diffuse, TexCoords));
 
-    // specular
+    // specular 2
     vec3 view_dir2 = normalize(view_pos - frag_3Dpos);
     vec3 reflect_dir2 = reflect(-light2_dir, normal);
     float spec2 = pow(max(dot(view_dir2, reflect_dir2), 0.0), material.shininess);
-    vec3 specular2 = light2.specular * spec2 * material.specular;
+    vec3 specular2 = light2.specular * spec2 * vec3(texture(material.specular, TexCoords));
 
     vec3 result = ambient + diffuse + specular;
     //sumamos la segunda luz
