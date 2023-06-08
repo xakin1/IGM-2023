@@ -29,14 +29,18 @@ w = 400
 h = 300
 
 # Normaliza un vector
+
+
 def normalize(x):
     x /= np.linalg.norm(x)
     return x
 
 # Calcula la intersección entre un rayo y un plano
 # O: Origen rayo, D: Dirección rayo, P: Posición plano, N: vector normal plano
+
+
 def intersect_plane(O, D, P, N):
-    # Return the distance from O to the intersection of the ray (O, D) with the 
+    # Return the distance from O to the intersection of the ray (O, D) with the
     # plane (P, N), or +inf if there is no intersection.
     # O and P are 3D points, D and N (normal) are normalized vectors.
     denom = np.dot(D, N)
@@ -48,8 +52,10 @@ def intersect_plane(O, D, P, N):
     return d
 
 # Igual a intersect_plane pero con una esfera
+
+
 def intersect_sphere(O, D, S, R):
-    # Return the distance from O to the intersection of the ray (O, D) with the 
+    # Return the distance from O to the intersection of the ray (O, D) with the
     # sphere (S, R), or +inf if there is no intersection.
     # O and S are 3D points, D (direction) is a normalized vector, R is a scalar.
     a = np.dot(D, D)
@@ -67,6 +73,7 @@ def intersect_sphere(O, D, S, R):
             return t1 if t0 < 0 else t0
     return np.inf
 
+
 def intersect(O, D, obj):
     if obj['type'] == 'plane':
         return intersect_plane(O, D, obj['position'], obj['normal'])
@@ -74,6 +81,8 @@ def intersect(O, D, obj):
         return intersect_sphere(O, D, obj['position'], obj['radius'])
 
 # obj: Objeto de la escena, M: punto de intersección
+
+
 def get_normal(obj, M):
     # Find normal.
     if obj['type'] == 'sphere':
@@ -83,6 +92,8 @@ def get_normal(obj, M):
     return N
 
 # obj: Objeto de la escena, M: punto de intersección
+
+
 def get_color(obj, M):
     color = obj['color']
     if not hasattr(color, '__len__'):
@@ -91,7 +102,9 @@ def get_color(obj, M):
 
 # Origen del rayo: ray0
 # Destino del rayo: rayD
-def trace_ray(rayO, rayD):
+
+
+def trace_ray(rayO, rayD, lights):
     # Find first point of intersection with the scene.
     t = np.inf
     for i, obj in enumerate(scene):
@@ -108,32 +121,39 @@ def trace_ray(rayO, rayD):
     # Find properties of the object.
     N = get_normal(obj, M)
     color = get_color(obj, M)
-    toL = normalize(L - M)
     toO = normalize(O - M)
-    # Shadow: find if the point is shadowed or not.
-    l = [intersect(M + N * .0001, toL, obj_sh) 
-            for k, obj_sh in enumerate(scene) if k != obj_idx]
-    if l and min(l) < np.inf:
-        return
-    # Start computing the color.
-    col_ray = ambient
-    # Lambert shading (diffuse).
-    col_ray += obj.get('diffuse_c', diffuse_c) * max(np.dot(N, toL), 0) * color
-    # Blinn-Phong shading (specular).
-    col_ray += obj.get('specular_c', specular_c) * max(np.dot(N, normalize(toL + toO)), 0) ** specular_k * color_light
+    for light in lights:
+        L, color_light = light
+        toL = normalize(L - M)
+        # Shadow: find if the point is shadowed or not.
+        l = [intersect(M + N * .0001, toL, obj_sh)
+             for k, obj_sh in enumerate(scene) if k != obj_idx]
+        if l and min(l) < np.inf:
+            return
+        # Start computing the color.
+        col_ray = ambient
+        # Lambert shading (diffuse).
+        col_ray += obj.get('diffuse_c', diffuse_c) * \
+            max(np.dot(N, toL), 0) * color
+        # Blinn-Phong shading (specular).
+        col_ray += obj.get('specular_c', specular_c) * max(np.dot(N,
+                                                                  normalize(toL + toO)), 0) ** specular_k * color_light
     return obj, M, N, col_ray
 
+
 def add_sphere(position, radius, color):
-    return dict(type='sphere', position=np.array(position), 
-        radius=np.array(radius), color=np.array(color), reflection=.5)
-    
+    return dict(type='sphere', position=np.array(position),
+                radius=np.array(radius), color=np.array(color), reflection=.5)
+
+
 def add_plane(position, normal):
-    return dict(type='plane', position=np.array(position), 
-        normal=np.array(normal),
-        color=lambda M: (color_plane0 
-            if (int(M[0] * 2) % 2) == (int(M[2] * 2) % 2) else color_plane1),
-        diffuse_c=.75, specular_c=.5, reflection=.25)
-    
+    return dict(type='plane', position=np.array(position),
+                normal=np.array(normal),
+                color=lambda M: (color_plane0
+                                 if (int(M[0] * 2) % 2) == (int(M[2] * 2) % 2) else color_plane1),
+                diffuse_c=.75, specular_c=.5, reflection=.25)
+
+
 # List of objects.
 color_plane0 = 1. * np.ones(3)
 color_plane1 = 0. * np.ones(3)
@@ -141,11 +161,23 @@ scene = [add_sphere([.75, .1, 1.], .6, [0., 0., 1.]),
          add_sphere([-.75, .1, 2.25], .6, [.5, .223, .5]),
          add_sphere([-2.75, .1, 3.5], .6, [1., .572, .184]),
          add_plane([0., -.5, 0.], [0., 1., 0.]),
-    ]
+         ]
 
 # Light position and color.
-L = np.array([5., 5., -10.])
-color_light = np.ones(3)
+L1 = np.array([5., 5., -10.])
+color_light1 = np.ones(3)
+
+L2 = np.array([-5., 10., 8.])
+color_light2 = np.array([1.0, 0.0, 0.0])
+
+L3 = np.array([0., 3., -12.])
+color_light3 = np.array([2.0, 0.5, 1.0])
+
+L4 = np.array([2., 2., -6.])
+color_light4 = np.array([1.0, 4.0, 2.0])
+
+lights = [(L1, color_light1), (L2, color_light2),
+          (L3, color_light3), (L4, color_light4)]
 
 # Default light and material parameters.
 ambient = .05
@@ -176,12 +208,13 @@ for i, x in enumerate(np.linspace(S[0], S[2], w)):
         reflection = 1.
         # Loop through initial and secondary rays.
         while depth < depth_max:
-            traced = trace_ray(rayO, rayD)
+            traced = trace_ray(rayO, rayD, lights)
             if not traced:
                 break
             obj, M, N, col_ray = traced
             # Reflection: create a new ray.
-            rayO, rayD = M + N * .0001, normalize(rayD - 2 * np.dot(rayD, N) * N)
+            rayO, rayD = M + \
+                N * .0001, normalize(rayD - 2 * np.dot(rayD, N) * N)
             depth += 1
             col += reflection * col_ray
             reflection *= obj.get('reflection', 1.)
